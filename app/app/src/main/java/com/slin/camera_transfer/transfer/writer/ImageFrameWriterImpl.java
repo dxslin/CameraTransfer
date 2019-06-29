@@ -59,4 +59,8 @@ public class ImageFrameWriterImpl implements ImageFrameWriter {
         outputStream.write(Utils.intToBytes(value));
     }
 
+    @Override
+    public ImageFrame getImageFrame() {
+        return imageFrame;
+    }
 }

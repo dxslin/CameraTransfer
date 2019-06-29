@@ -28,8 +28,16 @@ public class ImageFrameResolver {
 
     public boolean checkTitle() throws IOException {
         LogUtils.info("读取头部信息...");
-        boolean result = inputStream.read(frameTitleTag) != -1;
-        return result && new String(frameTitleTag).equals(TITLE_TAG);
+        int offset = 0;
+        while (offset < TITLE_TAG_SIZE) {
+            int size = inputStream.read(frameTitleTag, offset, TITLE_TAG_SIZE - offset);
+            if(size < 0){
+                LogUtils.info("read end");
+                return false;
+            }
+            offset += size;
+        }
+        return new String(frameTitleTag).equals(TITLE_TAG);
     }
 
     /**
@@ -60,17 +68,20 @@ public class ImageFrameResolver {
         while (offset < lastOffset){
             size = inputStream.read(data, offset, READ_LENGTH);
             if(size == -1){
-                break;
+                return;
             } else {
                 offset += size;
             }
         }
         //读取最后一段数据
-        size = inputStream.read(data, offset, length - offset);
-        if (size == (length - offset)) {
-            frame.setImage(ByteBuffer.wrap(data));
+        while (offset < length) {
+            size = inputStream.read(data, offset, length - offset);
+            if(size  < 0){
+                return;
+            }
+            offset += size;
         }
-
+        frame.setImage(ByteBuffer.wrap(data));
     }
 
     private void resolveSize(ImageFrame frame) throws IOException {

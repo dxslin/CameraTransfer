@@ -38,7 +38,7 @@ public class CameraTransferServer extends Thread {
         while (running) {
             //等待连接
             Socket socket = serverSocket.accept();
-            LogUtils.info("新连接：" + socket.getRemoteSocketAddress());
+            LogUtils.info("connected：" + socket.getRemoteSocketAddress());
             //线程池启动数据接收
             executorService.submit(new ImageFrameReceiver(socket));
         }

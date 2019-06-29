@@ -5,4 +5,8 @@
     <string name="description_info">Info</string>
     <string name="request_permission">请打开摄像头权限.</string>
     <string name="camera_error">This device doesn\'t support Camera2 API.</string>
+    <string name="connect">connect</string>
+    <string name="start">start</string>
+    <string name="stop">stop</string>
+    <string name="disconnect">disconnect</string>
 </resources>

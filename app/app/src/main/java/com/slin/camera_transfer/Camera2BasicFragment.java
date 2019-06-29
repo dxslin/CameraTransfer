@@ -39,7 +39,6 @@ import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.CaptureResult;
 import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
-import android.media.Image;
 import android.media.ImageReader;
 import android.os.Bundle;
 import android.os.Handler;
@@ -52,6 +51,9 @@ import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -60,14 +62,12 @@ import androidx.core.content.ContextCompat;
 import androidx.fragment.app.DialogFragment;
 import androidx.fragment.app.Fragment;
 
+import com.slin.camera_transfer.model.ImageFrame;
 import com.slin.camera_transfer.transfer.ImageTransfer;
-import com.slin.camera_transfer.utils.LogUtils;
 import com.slin.camera_transfer.view.AutoFitTextureView;
 
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.nio.ByteBuffer;
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -241,6 +241,11 @@ public class Camera2BasicFragment extends Fragment
 
     private ImageTransfer imageTransfer = ImageTransfer.getDefault();
 
+    private CheckBox cbConnectState;
+    private Button btnStartTransfer;
+    private Button btnConnect;
+    private TextView tvTransferInfo;
+
     /**
      * This a callback object for the {@link ImageReader}. "onImageAvailable" will be called when a
      * still image is ready to be saved.
@@ -250,7 +255,7 @@ public class Camera2BasicFragment extends Fragment
 
         @Override
         public void onImageAvailable(ImageReader reader) {
-            LogUtils.i("onImageAvailable");
+//            LogUtils.i("onImageAvailable");
 //            mBackgroundHandler.post(new ImageSaver(reader.acquireNextImage(), mFile));
             mBackgroundHandler.post(() -> imageTransfer.post(reader.acquireNextImage()));
         }
@@ -435,15 +440,52 @@ public class Camera2BasicFragment extends Fragment
 
     @Override
     public void onViewCreated(final View view, Bundle savedInstanceState) {
-        view.findViewById(R.id.picture).setOnClickListener(this);
-        view.findViewById(R.id.info).setOnClickListener(this);
-        mTextureView = (AutoFitTextureView) view.findViewById(R.id.texture);
+        mTextureView = view.findViewById(R.id.texture);
+        cbConnectState = view.findViewById(R.id.cb_connect_state);
+        btnStartTransfer = view.findViewById(R.id.btn_start_transfer);
+        btnConnect = view.findViewById(R.id.btn_connect);
+        tvTransferInfo = view.findViewById(R.id.tv_transfer_info);
+        btnStartTransfer.setOnClickListener(this);
+        btnConnect.setOnClickListener(this);
     }
 
     @Override
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
         mFile = getActivity().getExternalFilesDir(null);
+        initTransfer();
+    }
+
+    private void initTransfer() {
+        if (imageTransfer == null) {
+            imageTransfer = ImageTransfer.getDefault();
+        }
+        imageTransfer.setConnectListener(new ImageTransfer.OnConnectListener() {
+            @Override
+            public void onConnect(boolean isConnected) {
+                cbConnectState.setChecked(isConnected);
+                btnConnect.setText(isConnected ? R.string.disconnect : R.string.connect);
+            }
+
+            @Override
+            public void onDisconnect() {
+                cbConnectState.setChecked(false);
+                btnConnect.setText(R.string.connect);
+                btnStartTransfer.setText(R.string.start);
+                isTransferring = false;
+            }
+        });
+        imageTransfer.setTransferListener(new ImageTransfer.OnTransferListener() {
+            @Override
+            public void onStartTransfer(ImageFrame frame) {
+                tvTransferInfo.setText(MessageFormat.format("start new frame, length: {0}", frame.getLength()));
+            }
+
+            @Override
+            public void onTransferComplete(ImageFrame frame) {
+                tvTransferInfo.setText(MessageFormat.format("upload complete, length: {0}", frame.getLength()));
+            }
+        });
     }
 
     @Override
@@ -511,8 +553,7 @@ public class Camera2BasicFragment extends Fragment
                     continue;
                 }
 
-                StreamConfigurationMap map = characteristics.get(
-                        CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+                StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
                 if (map == null) {
                     continue;
                 }
@@ -521,10 +562,8 @@ public class Camera2BasicFragment extends Fragment
                 Size largest = Collections.max(
                         Arrays.asList(map.getOutputSizes(ImageFormat.JPEG)),
                         new CompareSizesByArea());
-                mImageReader = ImageReader.newInstance(largest.getWidth(), largest.getHeight(),
-                        ImageFormat.JPEG, /*maxImages*/2);
-                mImageReader.setOnImageAvailableListener(
-                        mOnImageAvailableListener, mBackgroundHandler);
+                mImageReader = ImageReader.newInstance(320, 480, ImageFormat.JPEG, 2);
+                mImageReader.setOnImageAvailableListener(mOnImageAvailableListener, mBackgroundHandler);
 
                 // Find out if we need to swap dimension to get the preview size relative to sensor
                 // coordinate.
@@ -581,11 +620,9 @@ public class Camera2BasicFragment extends Fragment
                 // We fit the aspect ratio of TextureView to the size of preview we picked.
                 int orientation = getResources().getConfiguration().orientation;
                 if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
-                    mTextureView.setAspectRatio(
-                            mPreviewSize.getWidth(), mPreviewSize.getHeight());
+                    mTextureView.setAspectRatio(mPreviewSize.getWidth(), mPreviewSize.getHeight());
                 } else {
-                    mTextureView.setAspectRatio(
-                            mPreviewSize.getHeight(), mPreviewSize.getWidth());
+                    mTextureView.setAspectRatio(mPreviewSize.getHeight(), mPreviewSize.getWidth());
                 }
 
                 // Check if the flash is supported.
@@ -662,11 +699,7 @@ public class Camera2BasicFragment extends Fragment
         mBackgroundThread = new HandlerThread("CameraBackground");
         mBackgroundThread.start();
         mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
-        mBackgroundHandler.post(() ->{
-            if(!imageTransfer.isConnected()){
-                imageTransfer.connect();
-            }
-        });
+        connect();
     }
 
     /**
@@ -681,6 +714,51 @@ public class Camera2BasicFragment extends Fragment
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
+    }
+
+    private boolean isTransferring = false;
+
+    private void stopTransfer() {
+        mPreviewRequestBuilder.removeTarget(mImageReader.getSurface());
+        try {
+            // Auto focus should be continuous for camera preview.
+            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
+                    CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+            // Flash is automatically enabled when necessary.
+            setAutoFlash(mPreviewRequestBuilder);
+
+            // Finally, we start displaying the camera preview.
+            mPreviewRequest = mPreviewRequestBuilder.build();
+            mCaptureSession.setRepeatingRequest(mPreviewRequest, mCaptureCallback, mBackgroundHandler);
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+        isTransferring = false;
+        btnStartTransfer.setText(R.string.start);
+    }
+
+    private void startTransfer() {
+        if (!imageTransfer.isConnected()) {
+            connect();
+        }
+        mPreviewRequestBuilder.addTarget(mImageReader.getSurface());
+        try {
+            // Auto focus should be continuous for camera preview.
+            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+            // Flash is automatically enabled when necessary.
+            setAutoFlash(mPreviewRequestBuilder);
+
+            // Finally, we start displaying the camera preview.
+            mPreviewRequest = mPreviewRequestBuilder.build();
+            mCaptureSession.setRepeatingRequest(mPreviewRequest, mCaptureCallback, mBackgroundHandler);
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+        isTransferring = true;
+        btnStartTransfer.setText(R.string.stop);
+
+//        new Handler().postDelayed(() -> btnStartTransfer.performClick(), 5000);
+
     }
 
     /**
@@ -698,8 +776,7 @@ public class Camera2BasicFragment extends Fragment
             Surface surface = new Surface(texture);
 
             // We set up a CaptureRequest.Builder with the output Surface.
-            mPreviewRequestBuilder
-                    = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+            mPreviewRequestBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
             mPreviewRequestBuilder.addTarget(surface);
 
             // Here, we create a CameraCaptureSession for camera preview.
@@ -789,12 +866,10 @@ public class Camera2BasicFragment extends Fragment
     private void lockFocus() {
         try {
             // This is how to tell the camera to lock focus.
-            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER,
-                    CameraMetadata.CONTROL_AF_TRIGGER_START);
+            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_START);
             // Tell #mCaptureCallback to wait for the lock.
             mState = STATE_WAITING_LOCK;
-            mCaptureSession.capture(mPreviewRequestBuilder.build(), mCaptureCallback,
-                    mBackgroundHandler);
+            mCaptureSession.capture(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler);
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
@@ -834,8 +909,7 @@ public class Camera2BasicFragment extends Fragment
             captureBuilder.addTarget(mImageReader.getSurface());
 
             // Use the same AE and AF modes as the preview.
-            captureBuilder.set(CaptureRequest.CONTROL_AF_MODE,
-                    CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+            captureBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
             setAutoFlash(captureBuilder);
 
             // Orientation
@@ -884,28 +958,42 @@ public class Camera2BasicFragment extends Fragment
     private void unlockFocus() {
         try {
             // Reset the auto-focus trigger
-            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER,
-                    CameraMetadata.CONTROL_AF_TRIGGER_CANCEL);
+            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_CANCEL);
             setAutoFlash(mPreviewRequestBuilder);
-            mCaptureSession.capture(mPreviewRequestBuilder.build(), mCaptureCallback,
-                    mBackgroundHandler);
+            mCaptureSession.capture(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler);
             // After this, the camera will go back to the normal state of preview.
             mState = STATE_PREVIEW;
-            mCaptureSession.setRepeatingRequest(mPreviewRequest, mCaptureCallback,
-                    mBackgroundHandler);
+            mCaptureSession.setRepeatingRequest(mPreviewRequest, mCaptureCallback, mBackgroundHandler);
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
     }
 
+    private void toggleConnect() {
+        if (imageTransfer.isConnected()) {
+            mBackgroundHandler.post(() -> imageTransfer.disconnect());
+        } else {
+            connect();
+        }
+    }
+
+    private void connect() {
+        mBackgroundHandler.post(() -> imageTransfer.connect());
+    }
+
     @Override
     public void onClick(View view) {
         switch (view.getId()) {
-            case R.id.picture: {
-                takePicture();
+            case R.id.btn_start_transfer: {
+                if (isTransferring) {
+                    stopTransfer();
+                } else {
+                    startTransfer();
+                }
                 break;
             }
-            case R.id.info: {
+            case R.id.btn_connect: {
+                toggleConnect();
                 break;
             }
         }
@@ -918,50 +1006,6 @@ public class Camera2BasicFragment extends Fragment
         }
     }
 
-    /**
-     * Saves a JPEG {@link Image} into the specified {@link File}.
-     */
-    private static class ImageSaver implements Runnable {
-        /**
-         * The JPEG image
-         */
-        private final Image mImage;
-        /**
-         * The file we save the image into.
-         */
-        private final File mFile;
-
-        ImageSaver(Image image, File file) {
-            mImage = image;
-            mFile = file;
-        }
-
-        @Override
-        public void run() {
-            ByteBuffer buffer = mImage.getPlanes()[0].getBuffer();
-            byte[] bytes = new byte[buffer.remaining()];
-            buffer.get(bytes);
-            FileOutputStream output = null;
-            File outputFile = new File(mFile, System.currentTimeMillis() + "_pic.jpg");
-            try {
-                output = new FileOutputStream(outputFile);
-                output.write(bytes);
-            } catch (IOException e) {
-                e.printStackTrace();
-            } finally {
-                mImage.close();
-                if (null != output) {
-                    try {
-                        output.close();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-            LogUtils.i("保存成功：" + outputFile.getAbsolutePath());
-        }
-
-    }
 
     /**
      * Compares two {@code Size}s based on their areas.

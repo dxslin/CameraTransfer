@@ -1,5 +1,6 @@
 package com.slin.camera_transfer.transfer.task;
 
+import com.slin.camera_transfer.model.ImageFrame;
 import com.slin.camera_transfer.transfer.writer.ImageFrameWriter;
 
 import java.io.IOException;
@@ -21,5 +22,10 @@ public class ImageFrameTaskImpl implements ImageFrameTask {
     @Override
     public void run() throws IOException {
         imageFrameWriter.write();
+    }
+
+    @Override
+    public ImageFrame getImageFrame() {
+        return imageFrameWriter.getImageFrame();
     }
 }

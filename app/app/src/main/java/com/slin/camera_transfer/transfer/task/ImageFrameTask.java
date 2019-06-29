@@ -1,5 +1,7 @@
 package com.slin.camera_transfer.transfer.task;
 
+import com.slin.camera_transfer.model.ImageFrame;
+
 import java.io.IOError;
 import java.io.IOException;
 
@@ -11,5 +13,7 @@ import java.io.IOException;
 public interface ImageFrameTask {
 
     void run() throws IOException;
+
+    ImageFrame getImageFrame();
 
 }

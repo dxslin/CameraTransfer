@@ -24,7 +24,7 @@ public class ImageFrameReceiver implements Runnable {
     private OutputStream outputStream;
 
     //这里应该创建一个receiverManager和writerManager管理receiver和writer，所有的receiver和writer都提交到manager里面去，时间不允许了
-    private ExecutorService executorService = Executors.newCachedThreadPool();
+    private ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     public ImageFrameReceiver(Socket socket) throws IOException {
         this.mSocket = socket;
@@ -39,6 +39,7 @@ public class ImageFrameReceiver implements Runnable {
         try {
             startListen();
         } catch (IOException e) {
+            LogUtils.info("disconnect: " + mSocket.getRemoteSocketAddress());
             e.printStackTrace();
             Utils.close(inputStream);
             Utils.close(outputStream);
