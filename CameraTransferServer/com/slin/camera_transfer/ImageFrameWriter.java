@@ -14,7 +14,7 @@ public class ImageFrameWriter implements Runnable {
 
     public ImageFrameWriter(ImageFrame imageFrame){
         this.imageFrame = imageFrame;
-        file = new File("pic_" + System.currentTimeMillis() + ".jpg");
+        file = new File("img/", "pic_" + System.currentTimeMillis() + ".jpg");
     }
 
     @Override
@@ -27,6 +27,9 @@ public class ImageFrameWriter implements Runnable {
     }
 
     private void write() throws IOException {
+        if(!file.getParentFile().exists()){
+            file.mkdirs();
+        }
         FileOutputStream outputStream = new FileOutputStream(file);
         outputStream.write(imageFrame.getImage().array());
         outputStream.flush();

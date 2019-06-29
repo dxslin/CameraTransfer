@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.slin.camera_transfer;
+package com.slin.camera_transfer.view;
 
 import android.content.Context;
 import android.util.AttributeSet;

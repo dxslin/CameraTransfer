@@ -60,6 +60,10 @@ import androidx.core.content.ContextCompat;
 import androidx.fragment.app.DialogFragment;
 import androidx.fragment.app.Fragment;
 
+import com.slin.camera_transfer.transfer.ImageTransfer;
+import com.slin.camera_transfer.utils.LogUtils;
+import com.slin.camera_transfer.view.AutoFitTextureView;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -235,7 +239,7 @@ public class Camera2BasicFragment extends Fragment
      */
     private File mFile;
 
-    private Handler handler = new Handler();
+    private ImageTransfer imageTransfer = ImageTransfer.getDefault();
 
     /**
      * This a callback object for the {@link ImageReader}. "onImageAvailable" will be called when a
@@ -246,10 +250,9 @@ public class Camera2BasicFragment extends Fragment
 
         @Override
         public void onImageAvailable(ImageReader reader) {
-            mBackgroundHandler.post(new ImageSaver(reader.acquireNextImage(), mFile));
-            handler.postDelayed(()->{
-                takePicture();
-            }, 50);
+            LogUtils.i("onImageAvailable");
+//            mBackgroundHandler.post(new ImageSaver(reader.acquireNextImage(), mFile));
+            mBackgroundHandler.post(() -> imageTransfer.post(reader.acquireNextImage()));
         }
 
     };
@@ -388,7 +391,7 @@ public class Camera2BasicFragment extends Fragment
      * @return The optimal {@code Size}, or an arbitrary one if none were big enough
      */
     private static Size chooseOptimalSize(Size[] choices, int textureViewWidth,
-            int textureViewHeight, int maxWidth, int maxHeight, Size aspectRatio) {
+                                          int textureViewHeight, int maxWidth, int maxHeight, Size aspectRatio) {
 
         // Collect the supported resolutions that are at least as big as the preview Surface
         List<Size> bigEnough = new ArrayList<>();
@@ -400,7 +403,7 @@ public class Camera2BasicFragment extends Fragment
             if (option.getWidth() <= maxWidth && option.getHeight() <= maxHeight &&
                     option.getHeight() == option.getWidth() * h / w) {
                 if (option.getWidth() >= textureViewWidth &&
-                    option.getHeight() >= textureViewHeight) {
+                        option.getHeight() >= textureViewHeight) {
                     bigEnough.add(option);
                 } else {
                     notBigEnough.add(option);
@@ -659,6 +662,11 @@ public class Camera2BasicFragment extends Fragment
         mBackgroundThread = new HandlerThread("CameraBackground");
         mBackgroundThread.start();
         mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
+        mBackgroundHandler.post(() ->{
+            if(!imageTransfer.isConnected()){
+                imageTransfer.connect();
+            }
+        });
     }
 
     /**
@@ -841,8 +849,8 @@ public class Camera2BasicFragment extends Fragment
                 public void onCaptureCompleted(@NonNull CameraCaptureSession session,
                                                @NonNull CaptureRequest request,
                                                @NonNull TotalCaptureResult result) {
-                    showToast("Saved: " + mFile);
-                    Log.d(TAG, mFile.toString());
+//                    showToast("Saved: " + mFile);
+//                    Log.d(TAG, mFile.toString());
                     unlockFocus();
                 }
             };
@@ -914,9 +922,6 @@ public class Camera2BasicFragment extends Fragment
      * Saves a JPEG {@link Image} into the specified {@link File}.
      */
     private static class ImageSaver implements Runnable {
-
-        int picNumber = 0;
-        long startTime;
         /**
          * The JPEG image
          */
@@ -933,19 +938,13 @@ public class Camera2BasicFragment extends Fragment
 
         @Override
         public void run() {
-            if(picNumber == 0){
-                startTime = System.currentTimeMillis();
-            }
-            if(picNumber++ > 30){
-                Log.d(TAG, "run: use time: " + (System.currentTimeMillis() - startTime));
-                return;
-            }
             ByteBuffer buffer = mImage.getPlanes()[0].getBuffer();
             byte[] bytes = new byte[buffer.remaining()];
             buffer.get(bytes);
             FileOutputStream output = null;
+            File outputFile = new File(mFile, System.currentTimeMillis() + "_pic.jpg");
             try {
-                output = new FileOutputStream(new File(mFile, System.currentTimeMillis() + "_pic.jpg"));
+                output = new FileOutputStream(outputFile);
                 output.write(bytes);
             } catch (IOException e) {
                 e.printStackTrace();
@@ -959,6 +958,7 @@ public class Camera2BasicFragment extends Fragment
                     }
                 }
             }
+            LogUtils.i("保存成功：" + outputFile.getAbsolutePath());
         }
 
     }
@@ -1041,4 +1041,9 @@ public class Camera2BasicFragment extends Fragment
         }
     }
 
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        imageTransfer.destroy();
+    }
 }

@@ -3,6 +3,7 @@ package com.slin.camera_transfer;
 import com.slin.camera_transfer.utils.LogUtils;
 import com.slin.camera_transfer.utils.Utils;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;

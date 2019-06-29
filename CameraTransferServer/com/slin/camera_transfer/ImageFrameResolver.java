@@ -1,5 +1,8 @@
 package com.slin.camera_transfer;
 
+import com.slin.camera_transfer.utils.LogUtils;
+import sun.rmi.runtime.Log;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -13,6 +16,7 @@ import static com.slin.camera_transfer.utils.Utils.bytesToInt;
  */
 public class ImageFrameResolver {
 
+    private static final int READ_LENGTH = 1024;
 
     private InputStream inputStream;
 
@@ -23,6 +27,7 @@ public class ImageFrameResolver {
     }
 
     public boolean checkTitle() throws IOException {
+        LogUtils.info("读取头部信息...");
         boolean result = inputStream.read(frameTitleTag) != -1;
         return result && new String(frameTitleTag).equals(TITLE_TAG);
     }
@@ -39,9 +44,11 @@ public class ImageFrameResolver {
      * @throws IOException
      */
     public ImageFrame resolve() throws IOException {
+        LogUtils.info("开始读取...");
         ImageFrame imageFrame = new ImageFrame();
         resolveSize(imageFrame);
         resolveData(imageFrame);
+        LogUtils.info("读取成功...");
         return imageFrame;
     }
 
@@ -49,10 +56,21 @@ public class ImageFrameResolver {
         int length = readOneInt();
         frame.setLength(length);
         byte[] data = new byte[length];
-        boolean isRead = inputStream.read(data) != -1;
-        if(isRead){
+        int size, offset = 0, lastOffset = length - READ_LENGTH;
+        while (offset < lastOffset){
+            size = inputStream.read(data, offset, READ_LENGTH);
+            if(size == -1){
+                break;
+            } else {
+                offset += size;
+            }
+        }
+        //读取最后一段数据
+        size = inputStream.read(data, offset, length - offset);
+        if (size == (length - offset)) {
             frame.setImage(ByteBuffer.wrap(data));
         }
+
     }
 
     private void resolveSize(ImageFrame frame) throws IOException {
@@ -63,8 +81,8 @@ public class ImageFrameResolver {
     private int readOneInt() throws IOException {
         int result = 0;
         byte[] bytes = new byte[4];
-        boolean isRead = inputStream.read(bytes) != -1;
-        if (isRead) {
+        int size = inputStream.read(bytes);
+        if (size == 4) {
             result = bytesToInt(bytes);
         }
         return result;
