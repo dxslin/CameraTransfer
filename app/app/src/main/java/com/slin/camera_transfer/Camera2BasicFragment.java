@@ -18,10 +18,7 @@ package com.slin.camera_transfer;
 
 import android.Manifest;
 import android.app.Activity;
-import android.app.AlertDialog;
-import android.app.Dialog;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.ImageFormat;
@@ -43,6 +40,7 @@ import android.media.ImageReader;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.text.TextUtils;
 import android.util.Log;
 import android.util.Size;
 import android.util.SparseIntArray;
@@ -59,14 +57,20 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import androidx.fragment.app.DialogFragment;
 import androidx.fragment.app.Fragment;
 
+import com.slin.camera_transfer.config.SettingConfig;
+import com.slin.camera_transfer.config.SettingManager;
+import com.slin.camera_transfer.dialog.ConfirmationDialog;
+import com.slin.camera_transfer.dialog.ErrorDialog;
+import com.slin.camera_transfer.dialog.SettingViewHolder;
 import com.slin.camera_transfer.model.ImageFrame;
 import com.slin.camera_transfer.transfer.ImageTransfer;
+import com.slin.camera_transfer.utils.LogUtils;
 import com.slin.camera_transfer.view.AutoFitTextureView;
+import com.slin.dialog.SlinDialog;
+import com.slin.dialog.core.DialogViewHolder;
 
-import java.io.File;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -83,7 +87,7 @@ public class Camera2BasicFragment extends Fragment
      * Conversion from screen rotation to JPEG orientation.
      */
     private static final SparseIntArray ORIENTATIONS = new SparseIntArray();
-    private static final int REQUEST_CAMERA_PERMISSION = 1;
+    public static final int REQUEST_CAMERA_PERMISSION = 1;
     private static final String FRAGMENT_DIALOG = "dialog";
 
     static {
@@ -234,17 +238,15 @@ public class Camera2BasicFragment extends Fragment
      */
     private ImageReader mImageReader;
 
-    /**
-     * This is the output file for our picture.
-     */
-    private File mFile;
-
-    private ImageTransfer imageTransfer = ImageTransfer.getDefault();
+    private ImageTransfer imageTransfer;
 
     private CheckBox cbConnectState;
     private Button btnStartTransfer;
     private Button btnConnect;
     private TextView tvTransferInfo;
+
+
+    private SettingConfig settingConfig;
 
     /**
      * This a callback object for the {@link ImageReader}. "onImageAvailable" will be called when a
@@ -255,8 +257,6 @@ public class Camera2BasicFragment extends Fragment
 
         @Override
         public void onImageAvailable(ImageReader reader) {
-//            LogUtils.i("onImageAvailable");
-//            mBackgroundHandler.post(new ImageSaver(reader.acquireNextImage(), mFile));
             mBackgroundHandler.post(() -> imageTransfer.post(reader.acquireNextImage()));
         }
 
@@ -447,28 +447,38 @@ public class Camera2BasicFragment extends Fragment
         tvTransferInfo = view.findViewById(R.id.tv_transfer_info);
         btnStartTransfer.setOnClickListener(this);
         btnConnect.setOnClickListener(this);
+        view.findViewById(R.id.btn_setting).setOnClickListener(this);
     }
 
     @Override
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
-        mFile = getActivity().getExternalFilesDir(null);
+        readSettingConfig();
         initTransfer();
     }
 
+    //读取配置
+    private void readSettingConfig() {
+        settingConfig = SettingManager.getInstance().readConfig();
+    }
+
+    //初始化图像传输器
     private void initTransfer() {
-        if (imageTransfer == null) {
-            imageTransfer = ImageTransfer.getDefault();
-        }
+        imageTransfer = new ImageTransfer(settingConfig.ip, settingConfig.port);
         imageTransfer.setConnectListener(new ImageTransfer.OnConnectListener() {
             @Override
             public void onConnect(boolean isConnected) {
+                LogUtils.i("connect： " + isConnected);
                 cbConnectState.setChecked(isConnected);
                 btnConnect.setText(isConnected ? R.string.disconnect : R.string.connect);
+                if (!isConnected) {
+                    showToast("连接失败");
+                }
             }
 
             @Override
             public void onDisconnect() {
+                LogUtils.i("disconnect");
                 cbConnectState.setChecked(false);
                 btnConnect.setText(R.string.connect);
                 btnStartTransfer.setText(R.string.start);
@@ -484,8 +494,38 @@ public class Camera2BasicFragment extends Fragment
             @Override
             public void onTransferComplete(ImageFrame frame) {
                 tvTransferInfo.setText(MessageFormat.format("upload complete, length: {0}", frame.getLength()));
+                if (settingConfig.useCapture && isTransferring) {
+                    captureStillPicture();
+                }
             }
         });
+    }
+
+    //设置窗口重新设置参数
+    private void updateSettingConfig(SettingConfig config) {
+        if (!TextUtils.equals(config.ip, settingConfig.ip) || config.port != settingConfig.port) {
+            settingConfig.ip = config.ip;
+            settingConfig.port = config.port;
+
+            //直接销毁之前的，然后重新创建
+            imageTransfer.destroy();
+            initTransfer();
+            connect();
+        }
+        if (config.width != settingConfig.width || config.height != settingConfig.height) {
+            settingConfig.width = config.width;
+            settingConfig.height = config.height;
+            mImageReader.close();
+            mImageReader = ImageReader.newInstance(settingConfig.width, settingConfig.height, ImageFormat.JPEG, 2);
+            mImageReader.setOnImageAvailableListener(mOnImageAvailableListener, mBackgroundHandler);
+            createCameraPreviewSession();
+        }
+        if (settingConfig.useCapture != config.useCapture) {
+            if (isTransferring) {
+                stopTransfer();
+            }
+            settingConfig.useCapture = config.useCapture;
+        }
     }
 
     @Override
@@ -510,28 +550,6 @@ public class Camera2BasicFragment extends Fragment
         stopBackgroundThread();
         super.onPause();
     }
-
-    private void requestCameraPermission() {
-        if (shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)) {
-            new ConfirmationDialog().show(getChildFragmentManager(), FRAGMENT_DIALOG);
-        } else {
-            requestPermissions(new String[]{Manifest.permission.CAMERA}, REQUEST_CAMERA_PERMISSION);
-        }
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
-                                           @NonNull int[] grantResults) {
-        if (requestCode == REQUEST_CAMERA_PERMISSION) {
-            if (grantResults.length != 1 || grantResults[0] != PackageManager.PERMISSION_GRANTED) {
-                ErrorDialog.newInstance(getString(R.string.request_permission))
-                        .show(getChildFragmentManager(), FRAGMENT_DIALOG);
-            }
-        } else {
-            super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        }
-    }
-
     /**
      * Sets up member variables related to camera.
      *
@@ -562,7 +580,7 @@ public class Camera2BasicFragment extends Fragment
                 Size largest = Collections.max(
                         Arrays.asList(map.getOutputSizes(ImageFormat.JPEG)),
                         new CompareSizesByArea());
-                mImageReader = ImageReader.newInstance(320, 480, ImageFormat.JPEG, 2);
+                mImageReader = ImageReader.newInstance(settingConfig.width, settingConfig.height, ImageFormat.JPEG, 2);
                 mImageReader.setOnImageAvailableListener(mOnImageAvailableListener, mBackgroundHandler);
 
                 // Find out if we need to swap dimension to get the preview size relative to sensor
@@ -719,44 +737,49 @@ public class Camera2BasicFragment extends Fragment
     private boolean isTransferring = false;
 
     private void stopTransfer() {
-        mPreviewRequestBuilder.removeTarget(mImageReader.getSurface());
-        try {
-            // Auto focus should be continuous for camera preview.
-            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
-                    CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
-            // Flash is automatically enabled when necessary.
-            setAutoFlash(mPreviewRequestBuilder);
+        if (!settingConfig.useCapture) {
+            mPreviewRequestBuilder.removeTarget(mImageReader.getSurface());
+            try {
+                // Auto focus should be continuous for camera preview.
+                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
+                        CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+                // Flash is automatically enabled when necessary.
+                setAutoFlash(mPreviewRequestBuilder);
 
-            // Finally, we start displaying the camera preview.
-            mPreviewRequest = mPreviewRequestBuilder.build();
-            mCaptureSession.setRepeatingRequest(mPreviewRequest, mCaptureCallback, mBackgroundHandler);
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
+                // Finally, we start displaying the camera preview.
+                mPreviewRequest = mPreviewRequestBuilder.build();
+                mCaptureSession.setRepeatingRequest(mPreviewRequest, mCaptureCallback, mBackgroundHandler);
+            } catch (CameraAccessException e) {
+                e.printStackTrace();
+            }
         }
         isTransferring = false;
         btnStartTransfer.setText(R.string.start);
     }
 
     private void startTransfer() {
-        if (!imageTransfer.isConnected()) {
-            connect();
-        }
-        mPreviewRequestBuilder.addTarget(mImageReader.getSurface());
-        try {
-            // Auto focus should be continuous for camera preview.
-            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
-            // Flash is automatically enabled when necessary.
-            setAutoFlash(mPreviewRequestBuilder);
-
-            // Finally, we start displaying the camera preview.
-            mPreviewRequest = mPreviewRequestBuilder.build();
-            mCaptureSession.setRepeatingRequest(mPreviewRequest, mCaptureCallback, mBackgroundHandler);
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
-        }
+//        if (!imageTransfer.isConnected()) {
+//            connect();
+//        }
         isTransferring = true;
         btnStartTransfer.setText(R.string.stop);
+        if (settingConfig.useCapture) {
+            captureStillPicture();
+        } else {
+            mPreviewRequestBuilder.addTarget(mImageReader.getSurface());
+            try {
+                // Auto focus should be continuous for camera preview.
+                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+                // Flash is automatically enabled when necessary.
+                setAutoFlash(mPreviewRequestBuilder);
 
+                // Finally, we start displaying the camera preview.
+                mPreviewRequest = mPreviewRequestBuilder.build();
+                mCaptureSession.setRepeatingRequest(mPreviewRequest, mCaptureCallback, mBackgroundHandler);
+            } catch (CameraAccessException e) {
+                e.printStackTrace();
+            }
+        }
 //        new Handler().postDelayed(() -> btnStartTransfer.performClick(), 5000);
 
     }
@@ -801,8 +824,7 @@ public class Camera2BasicFragment extends Fragment
 
                                 // Finally, we start displaying the camera preview.
                                 mPreviewRequest = mPreviewRequestBuilder.build();
-                                mCaptureSession.setRepeatingRequest(mPreviewRequest,
-                                        mCaptureCallback, mBackgroundHandler);
+                                mCaptureSession.setRepeatingRequest(mPreviewRequest, mCaptureCallback, mBackgroundHandler);
                             } catch (CameraAccessException e) {
                                 e.printStackTrace();
                             }
@@ -971,14 +993,18 @@ public class Camera2BasicFragment extends Fragment
 
     private void toggleConnect() {
         if (imageTransfer.isConnected()) {
-            mBackgroundHandler.post(() -> imageTransfer.disconnect());
+            disconnect();
         } else {
             connect();
         }
     }
 
+    private void disconnect() {
+        imageTransfer.disconnect();
+    }
+
     private void connect() {
-        mBackgroundHandler.post(() -> imageTransfer.connect());
+        imageTransfer.connect();
     }
 
     @Override
@@ -996,8 +1022,23 @@ public class Camera2BasicFragment extends Fragment
                 toggleConnect();
                 break;
             }
+            case R.id.btn_setting:
+                setting();
+                break;
         }
     }
+
+    private void setting() {
+        DialogViewHolder viewHolder = new SettingViewHolder(settingConfig)
+                .setConfirmListener(config1 -> {
+                    LogUtils.i("new setting config: " + config1);
+                    updateSettingConfig(config1);
+                    SettingManager.getInstance().writeConfig(config1);
+                });
+
+        SlinDialog.showDialog(getChildFragmentManager(), viewHolder);
+    }
+
 
     private void setAutoFlash(CaptureRequest.Builder requestBuilder) {
         if (mFlashSupported) {
@@ -1021,73 +1062,35 @@ public class Camera2BasicFragment extends Fragment
 
     }
 
-    /**
-     * Shows an error message dialog.
-     */
-    public static class ErrorDialog extends DialogFragment {
-
-        private static final String ARG_MESSAGE = "message";
-
-        public static ErrorDialog newInstance(String message) {
-            ErrorDialog dialog = new ErrorDialog();
-            Bundle args = new Bundle();
-            args.putString(ARG_MESSAGE, message);
-            dialog.setArguments(args);
-            return dialog;
-        }
-
-        @NonNull
-        @Override
-        public Dialog onCreateDialog(Bundle savedInstanceState) {
-            final Activity activity = getActivity();
-            return new AlertDialog.Builder(activity)
-                    .setMessage(getArguments().getString(ARG_MESSAGE))
-                    .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialogInterface, int i) {
-                            activity.finish();
-                        }
-                    })
-                    .create();
-        }
-
-    }
-
-    /**
-     * Shows OK/Cancel confirmation dialog about camera permission.
-     */
-    public static class ConfirmationDialog extends DialogFragment {
-
-        @NonNull
-        @Override
-        public Dialog onCreateDialog(Bundle savedInstanceState) {
-            final Fragment parent = getParentFragment();
-            return new AlertDialog.Builder(getActivity())
-                    .setMessage(R.string.request_permission)
-                    .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialog, int which) {
-                            parent.requestPermissions(new String[]{Manifest.permission.CAMERA},
-                                    REQUEST_CAMERA_PERMISSION);
-                        }
-                    })
-                    .setNegativeButton(android.R.string.cancel,
-                            new DialogInterface.OnClickListener() {
-                                @Override
-                                public void onClick(DialogInterface dialog, int which) {
-                                    Activity activity = parent.getActivity();
-                                    if (activity != null) {
-                                        activity.finish();
-                                    }
-                                }
-                            })
-                    .create();
-        }
-    }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
         imageTransfer.destroy();
     }
+
+
+    private void requestCameraPermission() {
+        if (shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)) {
+            new ConfirmationDialog().show(getChildFragmentManager(), FRAGMENT_DIALOG);
+        } else {
+            requestPermissions(new String[]{Manifest.permission.CAMERA}, REQUEST_CAMERA_PERMISSION);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        if (requestCode == REQUEST_CAMERA_PERMISSION) {
+            if (grantResults.length != 1 || grantResults[0] != PackageManager.PERMISSION_GRANTED) {
+                ErrorDialog.newInstance(getString(R.string.request_permission))
+                        .show(getChildFragmentManager(), FRAGMENT_DIALOG);
+            }
+        } else {
+            super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        }
+    }
+
+
+
 }

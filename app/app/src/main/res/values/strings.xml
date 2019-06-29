@@ -9,4 +9,14 @@
     <string name="start">start</string>
     <string name="stop">stop</string>
     <string name="disconnect">disconnect</string>
+    <string name="setting">setting</string>
+    <string name="server_ip">服务器ip</string>
+    <string name="port">端口号</string>
+    <string name="resolution">分辨率</string>
+    <string name="width">width</string>
+    <string name="height">height</string>
+    <string name="port_en">port</string>
+    <string name="ip">ip</string>
+    <string name="ok">确定</string>
+    <string name="capture_mode">拍照模式</string>
 </resources>

@@ -26,6 +26,23 @@ public class Utils {
         return src;
     }
 
+
+    /**
+     * 将String转换位int
+     *
+     * @param value string value
+     * @return int value
+     */
+    public static int parseInteger(String value) {
+        int result = 0;
+        try {
+            result = Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+
+        }
+        return result;
+    }
+
     /**
      * 关闭连接
      * @param closeable closeable

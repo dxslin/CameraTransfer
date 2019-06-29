@@ -41,8 +41,12 @@ public class ImageTransfer {
     //记录任务数
     private AtomicInteger taskSize = new AtomicInteger(0);
 
+    private boolean isConnecting = false;
+
     private OnTransferListener transferListener;
     private OnConnectListener connectListener;
+
+    private Runnable connectRunnable = this::connectInternal;
 
     public static ImageTransfer getDefault() {
         return new ImageTransfer("192.168.1.102", 4040);
@@ -55,15 +59,23 @@ public class ImageTransfer {
     }
 
     public void connect() {
+        if (isConnecting) {
+            transferHandler.removeCallbacks(connectRunnable);
+        }
+        transferHandler.post(connectRunnable);
+    }
+
+    public void connectInternal() {
         if (isConnected) {
             return;
         }
+        isConnecting = true;
         try {
+            LogUtils.i("connect to " + mServerIp + ":" + mPort);
             socket = new Socket(mServerIp, mPort);
             outputStream = socket.getOutputStream();
             inputStream = socket.getInputStream();
             isConnected = true;
-            LogUtils.i("连接结果：" + isConnected);
             runOnMainThread(() -> {
                 if (connectListener != null) {
                     connectListener.onConnect(true);
@@ -78,6 +90,7 @@ public class ImageTransfer {
                 }
             });
         }
+        isConnecting = false;
     }
 
     public void post(Image image) {
@@ -120,11 +133,6 @@ public class ImageTransfer {
                 taskSize.getAndDecrement();
             } catch (IOException e) {
                 e.printStackTrace();
-                runOnMainThread(() -> {
-                    if (connectListener != null) {
-                        connectListener.onDisconnect();
-                    }
-                });
                 disconnect();
             }
         });
@@ -148,6 +156,11 @@ public class ImageTransfer {
             inputStream = null;
         }
         isConnected = false;
+        runOnMainThread(() -> {
+            if (connectListener != null) {
+                connectListener.onDisconnect();
+            }
+        });
     }
 
     public void destroy() {
@@ -155,6 +168,11 @@ public class ImageTransfer {
         if (transferThread != null) {
             transferThread.quitSafely();
         }
+    }
+
+    public void setServerIp(String ip, int port) {
+        this.mServerIp = ip;
+        this.mPort = port;
     }
 
     public boolean isConnected() {
