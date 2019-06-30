@@ -31,7 +31,6 @@ public class ImageFrameReceiver implements Runnable {
         inputStream = socket.getInputStream();
         //TODO 试下采用BufferedInputStream会不会快一些
 //        inputStream = new BufferedInputStream(inputStream);
-
         outputStream = socket.getOutputStream();
         frameResolver = new ImageFrameResolver(inputStream);
     }
