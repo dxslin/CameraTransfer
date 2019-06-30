@@ -2,8 +2,8 @@ package com.slin.camera_transfer;
 
 import com.slin.camera_transfer.utils.LogUtils;
 import com.slin.camera_transfer.utils.Utils;
+import com.slin.camera_transfer.writer.JpgImageFrameWriter;
 
-import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -29,6 +29,8 @@ public class ImageFrameReceiver implements Runnable {
     public ImageFrameReceiver(Socket socket) throws IOException {
         this.mSocket = socket;
         inputStream = socket.getInputStream();
+        //TODO 试下采用BufferedInputStream会不会快一些
+//        inputStream = new BufferedInputStream(inputStream);
         outputStream = socket.getOutputStream();
         frameResolver = new ImageFrameResolver(inputStream);
     }
@@ -56,7 +58,7 @@ public class ImageFrameReceiver implements Runnable {
         while (frameResolver.checkTitle()){
             ImageFrame imageFrame = frameResolver.resolve();
             LogUtils.info("resolved: " + imageFrame.toString());
-            ImageFrameWriter writer = new ImageFrameWriter(imageFrame);
+            JpgImageFrameWriter writer = new JpgImageFrameWriter(imageFrame);
             executorService.submit(writer);
         }
     }
