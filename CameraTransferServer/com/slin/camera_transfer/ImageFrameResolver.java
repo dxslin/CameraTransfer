@@ -1,7 +1,7 @@
 package com.slin.camera_transfer;
 
 import com.slin.camera_transfer.utils.LogUtils;
-import sun.rmi.runtime.Log;
+import com.sun.istack.internal.NotNull;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -16,11 +16,7 @@ import static com.slin.camera_transfer.utils.Utils.bytesToInt;
  */
 public class ImageFrameResolver {
 
-    private static final int READ_LENGTH = 1024;
-
     private InputStream inputStream;
-
-    private byte[] frameTitleTag = new byte[TITLE_TAG_SIZE];
 
     public ImageFrameResolver(InputStream inputStream) {
         this.inputStream = inputStream;
@@ -28,16 +24,9 @@ public class ImageFrameResolver {
 
     public boolean checkTitle() throws IOException {
         LogUtils.info("读取头部信息...");
-        int offset = 0;
-        while (offset < TITLE_TAG_SIZE) {
-            int size = inputStream.read(frameTitleTag, offset, TITLE_TAG_SIZE - offset);
-            if(size < 0){
-                LogUtils.info("read end");
-                return false;
-            }
-            offset += size;
-        }
-        return new String(frameTitleTag).equals(TITLE_TAG);
+        byte[] titleTag = new byte[TITLE_TAG_SIZE];
+        boolean result = read(titleTag);
+        return result && TITLE_TAG.equals(new String(titleTag));
     }
 
     /**
@@ -64,24 +53,10 @@ public class ImageFrameResolver {
         int length = readOneInt();
         frame.setLength(length);
         byte[] data = new byte[length];
-        int size, offset = 0, lastOffset = length - READ_LENGTH;
-        while (offset < lastOffset){
-            size = inputStream.read(data, offset, READ_LENGTH);
-            if(size == -1){
-                return;
-            } else {
-                offset += size;
-            }
+        boolean readResult = read(data);
+        if (readResult) {
+            frame.setImage(ByteBuffer.wrap(data));
         }
-        //读取最后一段数据
-        while (offset < length) {
-            size = inputStream.read(data, offset, length - offset);
-            if(size  < 0){
-                return;
-            }
-            offset += size;
-        }
-        frame.setImage(ByteBuffer.wrap(data));
     }
 
     private void resolveSize(ImageFrame frame) throws IOException {
@@ -92,11 +67,31 @@ public class ImageFrameResolver {
     private int readOneInt() throws IOException {
         int result = 0;
         byte[] bytes = new byte[4];
-        int size = inputStream.read(bytes);
-        if (size == 4) {
+        boolean r = read(bytes);
+        if (r) {
             result = bytesToInt(bytes);
         }
         return result;
+    }
+
+    /**
+     * 读取数据，读满数组长度的数据为止，会阻塞
+     *
+     * @param b 返回数据
+     * @return 读取是否成功
+     * @throws IOException exception
+     */
+    private boolean read(@NotNull byte[] b) throws IOException {
+        int offset = 0, length = b.length, size;
+        while (offset < length) {
+            size = inputStream.read(b, offset, length - offset);
+            if (size < 0) {
+                LogUtils.info("read end");
+                return false;
+            }
+            offset += size;
+        }
+        return true;
     }
 
 }
