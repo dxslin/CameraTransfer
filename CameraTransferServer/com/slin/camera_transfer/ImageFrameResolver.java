@@ -43,7 +43,7 @@ public class ImageFrameResolver {
     /**
      * 协议解析<br>
      *    协议内容              长度
-         camera_transfer		14                      <br>
+         camera_transfer		15                      <br>
          width			    	4                       <br>
          height				    4                       <br>
          imageDataLength  	    4                       <br>
