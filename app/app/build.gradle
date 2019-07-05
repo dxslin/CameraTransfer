@@ -1,16 +1,18 @@
+import java.text.SimpleDateFormat
+
 apply plugin: 'com.android.application'
 //加载配置文件
 Properties localProperties = new Properties()
 localProperties.load(project.rootProject.file('local.properties').newDataInputStream())
 
 android {
-    compileSdkVersion 28
+    compileSdkVersion rootProject.ext.android["compileSdkVersion"]
     defaultConfig {
         applicationId "com.slin.camera_transfer"
-        minSdkVersion 21
-        targetSdkVersion 28
-        versionCode 1
-        versionName "1.0"
+        minSdkVersion rootProject.ext.android["minSdkVersion"]
+        targetSdkVersion rootProject.ext.android["targetSdkVersion"]
+        versionCode rootProject.ext.android["versionCode"]
+        versionName rootProject.ext.android["versionName"]
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -44,4 +46,20 @@ dependencies {
     androidTestImplementation 'androidx.test:runner:1.2.0'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
     implementation 'com.github.dxslin:SlinDialog:0.2.3'
+}
+
+afterEvaluate{ project ->
+    def releaseTask = project.tasks.findByName('assembleRelease')
+    releaseTask.doLast{
+        copy{
+            def versionCode = rootProject.ext.android["versionCode"]
+            String versionName = rootProject.ext.android["versionName"]
+            String dateStr = new SimpleDateFormat("yyyyMMdd").format(new Date())
+            from('\\build\\outputs\\apk\\release'){
+                include('**.apk')
+            }
+            into '\\apk'
+            rename('(.+)-(.+)\\.(.+)', 'CameraTransfer$1-' + versionName + '-' + dateStr + '-$2' + + versionCode + '.$3')
+        }
+    }
 }
