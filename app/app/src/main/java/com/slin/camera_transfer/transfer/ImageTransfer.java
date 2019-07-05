@@ -13,6 +13,8 @@ import com.slin.camera_transfer.transfer.writer.ImageFrameWriterImpl;
 import com.slin.camera_transfer.utils.LogUtils;
 import com.slin.camera_transfer.utils.Utils;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -73,22 +75,18 @@ public class ImageTransfer {
         try {
             LogUtils.i("connect to " + mServerIp + ":" + mPort);
             socket = new Socket(mServerIp, mPort);
-            outputStream = socket.getOutputStream();
-            inputStream = socket.getInputStream();
+            outputStream = new BufferedOutputStream(socket.getOutputStream());
+            inputStream = new BufferedInputStream(socket.getInputStream());
             isConnected = true;
-            runOnMainThread(() -> {
-                if (connectListener != null) {
-                    connectListener.onConnect(true);
-                }
-            });
+            if (connectListener != null) {
+                runOnMainThread(() -> connectListener.onConnect(true));
+            }
         } catch (IOException e) {
             e.printStackTrace();
             isConnected = false;
-            runOnMainThread(() -> {
-                if (connectListener != null) {
-                    connectListener.onConnect(false);
-                }
-            });
+            if (connectListener != null) {
+                runOnMainThread(() -> connectListener.onConnect(false));
+            }
         }
         isConnecting = false;
     }
@@ -109,27 +107,19 @@ public class ImageTransfer {
             return;
         }
         taskSize.getAndIncrement();
-        postTaskInternal(task);
-    }
-
-    private void postTaskInternal(ImageFrameTask task) {
         transferHandler.post(() -> {
             try {
                 LogUtils.i("正在上传...");
 
-                runOnMainThread(() -> {
-                    if (transferListener != null) {
-                        transferListener.onStartTransfer(task.getImageFrame());
-                    }
-                });
+                if (transferListener != null) {
+                    runOnMainThread(() -> transferListener.onStartTransfer(task.getImageFrame()));
+                }
                 task.run();
                 LogUtils.i("上传成功...");
 
-                runOnMainThread(() -> {
-                    if (transferListener != null) {
-                        transferListener.onTransferComplete(task.getImageFrame());
-                    }
-                });
+                if (transferListener != null) {
+                    runOnMainThread(() -> transferListener.onTransferComplete(task.getImageFrame()));
+                }
                 taskSize.getAndDecrement();
             } catch (IOException e) {
                 e.printStackTrace();
@@ -156,11 +146,9 @@ public class ImageTransfer {
             inputStream = null;
         }
         isConnected = false;
-        runOnMainThread(() -> {
-            if (connectListener != null) {
-                connectListener.onDisconnect();
-            }
-        });
+        if (connectListener != null) {
+            runOnMainThread(() -> connectListener.onDisconnect());
+        }
     }
 
     public void destroy() {
