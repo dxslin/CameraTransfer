@@ -52,7 +52,7 @@ public class CameraTransferServer extends Thread {
         }
     }
 
-    public void destory(){
+    public void end() {
         running = false;
         try {
             serverSocket.close();

@@ -45,4 +45,9 @@ public class WriterDispatcherImpl implements WriterDispatcher {
         return factory.createWriter(imageFrame);
     }
 
+    @Override
+    public void destroy() {
+        executorService.shutdown();
+        registeredWriterList.clear();
+    }
 }

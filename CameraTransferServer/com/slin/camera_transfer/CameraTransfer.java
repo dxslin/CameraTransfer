@@ -36,4 +36,9 @@ public class CameraTransfer {
         writerDispatcher.registerWriter(factory);
     }
 
+    public void destroy() {
+        cameraTransferServer.end();
+        writerDispatcher.destroy();
+        receiverManager.destroy();
+    }
 }

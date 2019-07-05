@@ -13,4 +13,6 @@ public interface WriterDispatcher {
 
     void write(ImageFrame imageFrame);
 
+    void destroy();
+
 }
