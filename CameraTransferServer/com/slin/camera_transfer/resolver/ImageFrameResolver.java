@@ -1,5 +1,6 @@
-package com.slin.camera_transfer;
+package com.slin.camera_transfer.resolver;
 
+import com.slin.camera_transfer.bean.ImageFrame;
 import com.slin.camera_transfer.utils.LogUtils;
 import com.sun.istack.internal.NotNull;
 
@@ -7,8 +8,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 
-import static com.slin.camera_transfer.ImageFrame.TITLE_TAG;
-import static com.slin.camera_transfer.ImageFrame.TITLE_TAG_SIZE;
+import static com.slin.camera_transfer.bean.ImageFrame.TITLE_TAG;
+import static com.slin.camera_transfer.bean.ImageFrame.TITLE_TAG_SIZE;
 import static com.slin.camera_transfer.utils.Utils.bytesToInt;
 
 /**
@@ -23,7 +24,7 @@ public class ImageFrameResolver {
     }
 
     public boolean checkTitle() throws IOException {
-        LogUtils.info("读取头部信息...");
+        LogUtils.i("读取头部信息...");
         byte[] titleTag = new byte[TITLE_TAG_SIZE];
         boolean result = read(titleTag);
         return result && TITLE_TAG.equals(new String(titleTag));
@@ -41,11 +42,11 @@ public class ImageFrameResolver {
      * @throws IOException
      */
     public ImageFrame resolve() throws IOException {
-        LogUtils.info("开始读取...");
+        LogUtils.i("开始读取...");
         ImageFrame imageFrame = new ImageFrame();
         resolveSize(imageFrame);
         resolveData(imageFrame);
-        LogUtils.info("读取成功...");
+        LogUtils.i("读取成功...");
         return imageFrame;
     }
 
@@ -86,7 +87,7 @@ public class ImageFrameResolver {
         while (offset < length) {
             size = inputStream.read(b, offset, length - offset);
             if (size < 0) {
-                LogUtils.info("read end");
+                LogUtils.i("read end");
                 return false;
             }
             offset += size;

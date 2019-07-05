@@ -1,51 +1,46 @@
-package com.slin.camera_transfer;
+package com.slin.camera_transfer.server;
 
+import com.slin.camera_transfer.receiver.Receiver;
+import com.slin.camera_transfer.receiver.ReceiverManager;
 import com.slin.camera_transfer.utils.LogUtils;
-import sun.rmi.runtime.Log;
+import com.slin.camera_transfer.writer.WriterDispatcher;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.logging.Logger;
-
-import static java.util.concurrent.Executors.newCachedThreadPool;
 
 public class CameraTransferServer extends Thread {
 
-
     private int mPort;
+    private ReceiverManager mReceiverManager;
+    private WriterDispatcher mWriterDispatcher;
 
     private ServerSocket serverSocket;
 
     private boolean running = false;
-    private ExecutorService executorService = Executors.newCachedThreadPool();
 
-
-    public CameraTransferServer(int port){
+    public CameraTransferServer(int port, ReceiverManager receiverManager, WriterDispatcher dispatcher) {
         this.mPort = port;
+        this.mReceiverManager = receiverManager;
+        this.mWriterDispatcher = dispatcher;
     }
 
     private void startServer() throws IOException {
-        LogUtils.info("开始监听：" + mPort);
+        LogUtils.i("开始监听：" + mPort);
         serverSocket = new ServerSocket(mPort);
         running = true;
         while (running) {
             //等待连接
             Socket socket = serverSocket.accept();
-            LogUtils.info("connected：" + socket.getRemoteSocketAddress());
+            LogUtils.i("connected：" + socket.getRemoteSocketAddress());
             //线程池启动数据接收
-            executorService.submit(new ImageFrameReceiver(socket));
+            mReceiverManager.post(new Receiver(socket, mWriterDispatcher));
+
         }
         if(!serverSocket.isClosed()) {
             serverSocket.close();
         }
-        LogUtils.info("结束监听：" + mPort);
+        LogUtils.i("结束监听：" + mPort);
     }
 
     @Override
@@ -64,7 +59,7 @@ public class CameraTransferServer extends Thread {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        executorService.shutdown();
+        mReceiverManager.destroy();
     }
 
     public boolean isRunning() {

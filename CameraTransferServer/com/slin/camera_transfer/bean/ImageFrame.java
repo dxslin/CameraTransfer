@@ -1,4 +1,4 @@
-package com.slin.camera_transfer;
+package com.slin.camera_transfer.bean;
 
 import java.nio.ByteBuffer;
 
