@@ -102,6 +102,7 @@ public class ImageTransfer {
     private void postTask(ImageFrameTask task) {
         if (!isConnected) {
             LogUtils.w("Socket未连接");
+            onTransferError("未连接");
             return;
         }
         //如果排队任务超过3个则放弃本次任务，可以写成策略模式
@@ -117,7 +118,7 @@ public class ImageTransfer {
                 onTransferComplete(task);
             } catch (IOException e) {
                 e.printStackTrace();
-                onTransferError();
+                onTransferError("连接中断");
             }
         });
     }
@@ -138,7 +139,10 @@ public class ImageTransfer {
     }
 
 
-    private void onTransferError() {
+    private void onTransferError(String msg) {
+        if (transferListener != null) {
+            runOnMainThread(() -> transferListener.onTransferError(msg));
+        }
         disconnect();
     }
 
@@ -199,6 +203,7 @@ public class ImageTransfer {
 
         void onTransferComplete(ImageFrame frame, float frameRate);
 
+        void onTransferError(String msg);
     }
 
     public interface OnConnectListener {

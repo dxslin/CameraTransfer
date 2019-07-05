@@ -498,6 +498,12 @@ public class Camera2BasicFragment extends Fragment
                     captureStillPicture();
                 }
             }
+
+            @Override
+            public void onTransferError(String msg) {
+                showToast(msg);
+                stopTransfer();
+            }
         });
     }
 
