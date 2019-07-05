@@ -6,6 +6,7 @@ import android.os.HandlerThread;
 import android.os.Looper;
 
 import com.slin.camera_transfer.model.ImageFrame;
+import com.slin.camera_transfer.transfer.statistic.AverageCalculator;
 import com.slin.camera_transfer.transfer.task.ImageFrameTask;
 import com.slin.camera_transfer.transfer.task.ImageFrameTaskImpl;
 import com.slin.camera_transfer.transfer.writer.ImageFrameWriter;
@@ -42,6 +43,7 @@ public class ImageTransfer {
     private Handler mainThreadHandler;
     //记录任务数
     private AtomicInteger taskSize = new AtomicInteger(0);
+    private AverageCalculator averageCalculator = new AverageCalculator(2000);
 
     private boolean isConnecting = false;
 
@@ -67,7 +69,7 @@ public class ImageTransfer {
         transferHandler.post(connectRunnable);
     }
 
-    public void connectInternal() {
+    private void connectInternal() {
         if (isConnected) {
             return;
         }
@@ -109,23 +111,35 @@ public class ImageTransfer {
         taskSize.getAndIncrement();
         transferHandler.post(() -> {
             try {
-                LogUtils.i("正在上传...");
-
-                if (transferListener != null) {
-                    runOnMainThread(() -> transferListener.onStartTransfer(task.getImageFrame()));
-                }
+                onStartTransfer(task);
                 task.run();
-                LogUtils.i("上传成功...");
-
-                if (transferListener != null) {
-                    runOnMainThread(() -> transferListener.onTransferComplete(task.getImageFrame()));
-                }
                 taskSize.getAndDecrement();
+                onTransferComplete(task);
             } catch (IOException e) {
                 e.printStackTrace();
-                disconnect();
+                onTransferError();
             }
         });
+    }
+
+    private void onStartTransfer(ImageFrameTask task) {
+        LogUtils.i("正在上传...");
+        if (transferListener != null) {
+            runOnMainThread(() -> transferListener.onStartTransfer(task.getImageFrame()));
+        }
+    }
+
+    private void onTransferComplete(ImageFrameTask task) {
+        LogUtils.i("上传成功...");
+        float frameRate = averageCalculator.addCalculateAverage();
+        if (transferListener != null) {
+            runOnMainThread(() -> transferListener.onTransferComplete(task.getImageFrame(), frameRate));
+        }
+    }
+
+
+    private void onTransferError() {
+        disconnect();
     }
 
     private void initTransferThread() {
@@ -183,7 +197,7 @@ public class ImageTransfer {
 
         void onStartTransfer(ImageFrame frame);
 
-        void onTransferComplete(ImageFrame frame);
+        void onTransferComplete(ImageFrame frame, float frameRate);
 
     }
 

@@ -488,12 +488,12 @@ public class Camera2BasicFragment extends Fragment
         imageTransfer.setTransferListener(new ImageTransfer.OnTransferListener() {
             @Override
             public void onStartTransfer(ImageFrame frame) {
-                tvTransferInfo.setText(MessageFormat.format("start new frame, length: {0}", frame.getLength()));
+//                tvTransferInfo.setText(MessageFormat.format("start new frame, length: {0}", frame.getLength()));
             }
 
             @Override
-            public void onTransferComplete(ImageFrame frame) {
-                tvTransferInfo.setText(MessageFormat.format("upload complete, length: {0}", frame.getLength()));
+            public void onTransferComplete(ImageFrame frame, float frameRate) {
+                tvTransferInfo.setText(MessageFormat.format("frame rate: {0}", frameRate));
                 if (settingConfig.useCapture && isTransferring) {
                     captureStillPicture();
                 }
