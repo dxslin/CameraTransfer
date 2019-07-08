@@ -3,7 +3,7 @@ package com.slin.camera_transfer;
 import com.slin.camera_transfer.receiver.ReceiverManager;
 import com.slin.camera_transfer.receiver.ReceiverManagerImpl;
 import com.slin.camera_transfer.server.CameraTransferServer;
-import com.slin.camera_transfer.writer.Writer;
+import com.slin.camera_transfer.writer.ImageFrameWriter;
 import com.slin.camera_transfer.writer.WriterDispatcher;
 import com.slin.camera_transfer.writer.WriterDispatcherImpl;
 
@@ -32,8 +32,8 @@ public class CameraTransfer {
         return cameraTransferServer;
     }
 
-    public void registerWriter(Writer.Factory factory) {
-        writerDispatcher.registerWriter(factory);
+    public void registerWriter(ImageFrameWriter imageFrameWriter) {
+        writerDispatcher.registerWriter(imageFrameWriter);
     }
 
     public void destroy() {

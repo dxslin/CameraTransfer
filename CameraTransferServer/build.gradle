@@ -1,0 +1,12 @@
+group = "camera_tranfer"
+version = "1.0"
+
+apply plugin: "java"
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src/main/java']
+        }
+    }
+}

@@ -4,15 +4,12 @@ import com.slin.camera_transfer.bean.ImageFrame;
 
 /**
  * author: slin
- * date: 2019-07-01
+ * date: 2019-07-08
  * description:
  */
-public interface WriterDispatcher {
+public interface Writer {
 
-    void registerWriter(Writer.Factory factory);
-
-    void write(ImageFrame imageFrame);
+    void write(ImageFrame frame);
 
     void destroy();
-
 }
