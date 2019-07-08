@@ -1,8 +1,8 @@
 package com.slin.camera_transfer.resolver;
 
+import com.slin.camera_transfer.annotation.NonNull;
 import com.slin.camera_transfer.bean.ImageFrame;
 import com.slin.camera_transfer.utils.LogUtils;
-import com.sun.istack.internal.NotNull;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -82,7 +82,7 @@ public class ImageFrameResolver {
      * @return 读取是否成功
      * @throws IOException exception
      */
-    private boolean read(@NotNull byte[] b) throws IOException {
+    private boolean read(@NonNull byte[] b) throws IOException {
         int offset = 0, length = b.length, size;
         while (offset < length) {
             size = inputStream.read(b, offset, length - offset);

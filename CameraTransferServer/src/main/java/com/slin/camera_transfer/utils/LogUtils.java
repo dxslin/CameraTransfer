@@ -1,16 +1,14 @@
 package com.slin.camera_transfer.utils;
 
-
-import com.sun.istack.internal.logging.Logger;
-
 import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Created by slin on 2019-06-29.
  */
 public class LogUtils {
 
-    private static final Logger logger = Logger.getLogger(LogUtils.class);
+    private static final Logger logger = Logger.getLogger("CameraTransfer");
 
     public static void i(String content) {
         logger.info(content);
